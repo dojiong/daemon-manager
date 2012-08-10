@@ -6,15 +6,15 @@ manage linux daemons.
 ###Usage
 ```
 #run a daemon
-python dm.py run "sleep 10"
+dm run "sleep 10"
 
 #list all daemons
-python dm.py list
+dm list
 ```
 
 ####cmdline help
 ```
-$ ./dm.py -h
+$ dm -h
 usage: dm.py [-h] {list,run} ...
 
 client tool for daemon-manager
@@ -27,7 +27,7 @@ positional arguments:
 optional arguments:
   -h, --help  show this help message and exit
 
-$ ./dm.py run -h
+$ dm run -h
 usage: dm.py run [-h] [-o log_file] [-c dir] commandline
 
 positional arguments:
@@ -39,7 +39,7 @@ optional arguments:
                         output log file
   -c dir, --chdir dir   chdir to run
 
-$$ ./dm.py list -h
+$$ dm list -h
 usage: dm.py list [-h]
 
 optional arguments:
