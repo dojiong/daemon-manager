@@ -10,11 +10,58 @@
     :license: BSD, see LICENSE for more details.
 '''
 import re
-import json
 import sys
 import os
 from datetime import datetime
 import argparse
+import signal
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
+
+class Daemon(object):
+    def __init__(self, cmdline, logfile=None,
+            chdir=None, name=None, group=None, **ignore):
+        if chdir and not os.path.isdir(chdir):
+            raise OSError('no such directory: "%s"' % chdir)
+        self.cmdline = cmdline.strip()
+        self.logfile = logfile
+        self.chdir = chdir
+        self.name = name
+        self.group = group
+        self.pid = None
+        if self.chdir:
+            self.dir = self.chdir
+        else:
+            self.dir = os.getcwd()
+
+    def run(self):
+        pid = os.fork()
+        if pid < 0:
+            raise OSError('create subprocess fail')
+        elif pid == 0:
+            if self.chdir:
+                os.chdir(self.chdir)
+            os.umask(0)
+            os.setsid()
+            os.close(0)
+            if self.logfile:
+                f = file(self.logfile, 'a')
+                os.dup2(f.fileno(), 1)
+                os.dup2(f.fileno(), 2)
+            else:
+                os.close(1)
+                os.close(2)
+            args = self.cmdline.split()
+            os.execlp(args[0], *args)
+            os._exit(-1)
+        else:
+            self.pid = pid
+            self.time = datetime.now().strftime('%Y-%m-%d %H:%m:%S')
+            return pid
 
 
 class DM(object):
@@ -27,18 +74,19 @@ class DM(object):
         elif os.path.isfile(self.home):
             raise OSError('daemon-manager\'s home directory can\'t be created')
 
-    def get_daemons(self):
+    def get_daemons(self, name=None, group=None):
         files = os.listdir(self.home)
         dm_r = re.compile(r'^(\d+)\.dm$')
         dm_files = filter(lambda x: dm_r.match(x), files)
         daemons = {}
         for fname in dm_files:
             pid, _ = fname.split('.', 1)
+            dm_path = self.home_file(fname)
             try:
-                data = json.loads(file(self.home_file(fname)).read())
+                dm = pickle.load(file(dm_path))
             except:
                 try:
-                    os.unlink(self.home_file(fname))
+                    os.unlink(dm_path)
                 except OSError:
                     pass
                 continue
@@ -49,55 +97,61 @@ class DM(object):
                 except OSError:
                     continue
                 cmdline = cmdline.replace('\x00', ' ').strip()
-                if cmdline == data['cmd'].encode('utf8'):
-                    daemons[int(pid)] = data
+                if cmdline == dm.cmdline.encode('utf8'):
+                    if name is not None:
+                        if name == dm.name:
+                            return {dm.pid: dm}
+                        continue
+                    if group is None or group == dm.group:
+                        daemons[int(pid)] = dm
                     continue
-            os.unlink(self.home_file(fname))
+            os.unlink(dm_path)
         return daemons
 
-    def run(self, cmd, logfile=None, chdir=None):
-        cmd = cmd.strip()
-        if chdir and not os.path.isdir(chdir):
-            raise OSError('no such directory: %s' % chdir)
-        pid = os.fork()
-        if pid < 0:
-            raise OSError('create subprocess fail')
-        elif pid == 0:
-            if chdir:
-                os.chdir(chdir)
-            os.umask(0)
-            os.setsid()
-            os.close(0)
-            if logfile:
-                f = file(logfile, 'a')
-                os.dup2(f.fileno(), 1)
-                os.dup2(f.fileno(), 2)
-            else:
-                os.close(1)
-                os.close(2)
-            args = cmd.split()
-            os.execlp(args[0], *args)
-            os._exit(-1)
+    def run(self, cmdline, logfile=None,
+            chdir=None, name=None, group=None):
+        dm = Daemon(cmdline=cmdline, logfile=logfile, chdir=chdir,
+            name=name, group=group)
+        pid = dm.run()
+        if pid > 0:
+            print 'pid:', pid
+            f = file(self.home_file('%d.dm' % pid), 'wb')
+            f.write(pickle.dumps(dm))
+            f.close()
         else:
-            dm = file(self.home_file('%d.dm' % pid), 'w')
-            dm.write(json.dumps(
-                {'cmd': cmd, 'logfile': logfile, 'chdir': chdir,
-                 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}))
-            dm.close()
-            print 'daemon created, pid:', pid
+            print 'start daemon fail'
 
-    def list(self):
-        daemons = self.get_daemons()
+    def list(self, name=None, group=None):
+        daemons = self.get_daemons(name=name, group=group)
         if len(daemons) == 0:
             print 'no daemons'
             return
         for pid, dm in daemons.items():
-            print 'pid: %d, cmd: %s' % (pid, repr(dm['cmd'].encode('utf8'))),
-            if dm['logfile']:
-                print ', logfile: %s' % repr(dm['logfile'].encode('utf8')),
-            if dm['chdir']:
-                print ', chdir: %s' % repr(dm['chdir'].encode('utf8')),
-            print ', start at: "%s"' % dm['time']
+            print 'pid: %d, cmd: %s' % (pid, repr(dm.cmdline.encode('utf8'))),
+            if dm.logfile:
+                print ', logfile: %s' % repr(dm.logfile.encode('utf8')),
+            if dm.chdir:
+                print ', chdir: %s' % repr(dm.chdir.encode('utf8')),
+            if dm.name:
+                print ', name:', dm.name,
+            if dm.group:
+                print ', group:', dm.group,
+            print ', start at: "%s"' % dm.time
+
+    def kill(self, name=None, group=None, quiet=False):
+        daemons = self.get_daemons(name, group)
+        if len(daemons) > 0:
+            print '%d daemon to kill' % len(daemons),
+            if quiet == False:
+                yn = raw_input(', are you sure? [Y/n]')
+            else:
+                yn = 'Y'
+                print ''
+            if len(yn) == 0 or yn.upper() == 'Y':
+                for pid, dm in daemons.iteritems():
+                    os.kill(dm.pid, signal.SIGTERM)
+        else:
+            print 'no daemons to kill'
 
 
 def main():
@@ -107,19 +161,42 @@ def main():
     sub_parsers = args_parser.add_subparsers(dest='dmcmd')
 
     run_parser = sub_parsers.add_parser('run', help='start a daemon')
-    run_parser.add_argument(dest='cmd',
-        help='cmd to run', metavar='commandline')
+    run_parser.add_argument(dest='cmdline',
+        help='cmdline to run', metavar='cmdline')
     run_parser.add_argument('-o', '--log', default=None,
         dest='logfile', help='output log file', metavar='log_file')
     run_parser.add_argument('-c', '--chdir', default=None,
         dest='chdir', help='chdir to run', metavar='dir')
+    run_parser.add_argument('-n', '--name', default=None,
+        dest='name', help='daemon name', metavar='name')
+    run_parser.add_argument('-g', '--group', default=None,
+        dest='group', help='daemon group', metavar='group')
 
-    sub_parsers.add_parser('list', help='list daemons')
+    list_parser = sub_parsers.add_parser('list', help='list daemons')
+    list_parser.add_argument('-n', '--name', default=None,
+        dest='name', help='filter by daemon name', metavar='name')
+    list_parser.add_argument('-g', '--group', default=None,
+        dest='group', help='filter by daemon group', metavar='group')
+
+    kill_parser = sub_parsers.add_parser(
+        'kill', help='kill daemons, default to all')
+    kill_parser.add_argument('-n', '--name', default=None,
+        dest='name', help='filter by daemon name', metavar='name')
+    kill_parser.add_argument('-g', '--group', default=None,
+        dest='group', help='filter by daemon group', metavar='group')
+    kill_parser.add_argument('-f', '--quiet', default=False,
+        dest='quiet', help='quiet to kill, no prompt', action='store_true')
 
     dm = DM()
     args = args_parser.parse_args(sys.argv[1:])
 
     if args.dmcmd == 'run':
-        dm.run(args.cmd, args.logfile)
+        dm.run(cmdline=args.cmdline, logfile=args.logfile,
+            name=args.name, group=args.group)
     elif args.dmcmd == 'list':
-        dm.list()
+        dm.list(name=args.name, group=args.group)
+    elif args.dmcmd == 'kill':
+        dm.kill(name=args.name, group=args.group, quiet=args.quiet)
+
+if __name__ == '__main__':
+    main()
