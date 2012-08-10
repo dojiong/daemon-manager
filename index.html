@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+
+    <title>daemon-manager by lodevil</title>
+  </head>
+
+  <body>
+
+    <header>
+      <div class="container">
+        <h1>daemon-manager</h1>
+        <h2>user tool for creating and managing daemons</h2>
+
+        <section id="downloads">
+          <a href="https://github.com/lodevil/daemon-manager/zipball/master" class="btn">Download as .zip</a>
+          <a href="https://github.com/lodevil/daemon-manager/tarball/master" class="btn">Download as .tar.gz</a>
+          <a href="https://github.com/lodevil/daemon-manager" class="btn btn-github"><span class="icon"></span>View on GitHub</a>
+        </section>
+      </div>
+    </header>
+
+    <div class="container">
+      <section id="main_content">
+        <h1>daemon-manager</h1>
+
+<p>manage linux daemons.</p>
+
+<h3>Usage</h3>
+
+<pre><code>#run a daemon
+dm run "sleep 10"
+
+#list all daemons
+dm list
+</code></pre>
+
+<h4>cmdline help</h4>
+
+<pre><code>$ dm -h
+usage: dm [-h] {list,run} ...
+
+client tool for daemon-manager
+
+positional arguments:
+  {list,run}
+    run       start a daemon
+    list      list daemons
+
+optional arguments:
+  -h, --help  show this help message and exit
+
+$ dm run -h
+usage: dm run [-h] [-o log_file] [-c dir] commandline
+
+positional arguments:
+  commandline           cmd to run
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -o log_file, --stdout log_file
+                        output log file
+  -c dir, --chdir dir   chdir to run
+
+$ dm list -h
+usage: dm list [-h]
+
+optional arguments:
+  -h, --help  show this help message and exit
+</code></pre>
+      </section>
+    </div>
+
+    
+  </body>
+</html>
