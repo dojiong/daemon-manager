@@ -138,7 +138,7 @@ class DM(object):
                 print ', group:', dm.group,
             print ', start at: "%s"' % dm.time
 
-    def kill(self, name=None, group=None, quiet=False):
+    def kill(self, name=None, group=None, quiet=False, sigkill=False):
         daemons = self.get_daemons(name, group)
         if len(daemons) > 0:
             print '%d daemon to kill' % len(daemons),
@@ -149,7 +149,10 @@ class DM(object):
                 print ''
             if len(yn) == 0 or yn.upper() == 'Y':
                 for pid, dm in daemons.iteritems():
-                    os.kill(dm.pid, signal.SIGTERM)
+                    if sigkill:
+                        os.kill(dm.pid, signal.SIGKILL)
+                    else:
+                        os.kill(dm.pid, signal.SIGTERM)
         else:
             print 'no daemons to kill'
 
@@ -186,6 +189,8 @@ def main():
         dest='group', help='filter by daemon group', metavar='group')
     kill_parser.add_argument('-f', '--quiet', default=False,
         dest='quiet', help='quiet to kill, no prompt', action='store_true')
+    kill_parser.add_argument('-9', default=False,
+        dest='sigkill', help='use SIGKILL to kill', action='store_true')
 
     dm = DM()
     args = args_parser.parse_args(sys.argv[1:])
@@ -196,7 +201,8 @@ def main():
     elif args.dmcmd == 'list':
         dm.list(name=args.name, group=args.group)
     elif args.dmcmd == 'kill':
-        dm.kill(name=args.name, group=args.group, quiet=args.quiet)
+        dm.kill(name=args.name, group=args.group, quiet=args.quiet,
+            sigkill=args.sigkill)
 
 if __name__ == '__main__':
     main()
