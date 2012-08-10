@@ -15,7 +15,7 @@ dm list
 ####cmdline help
 ```
 $ dm -h
-usage: dm.py [-h] {list,run} ...
+usage: dm [-h] {list,run} ...
 
 client tool for daemon-manager
 
@@ -28,7 +28,7 @@ optional arguments:
   -h, --help  show this help message and exit
 
 $ dm run -h
-usage: dm.py run [-h] [-o log_file] [-c dir] commandline
+usage: dm run [-h] [-o log_file] [-c dir] commandline
 
 positional arguments:
   commandline           cmd to run
@@ -40,7 +40,7 @@ optional arguments:
   -c dir, --chdir dir   chdir to run
 
 $$ dm list -h
-usage: dm.py list [-h]
+usage: dm list [-h]
 
 optional arguments:
   -h, --help  show this help message and exit
