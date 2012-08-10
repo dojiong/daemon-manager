@@ -39,7 +39,7 @@ optional arguments:
                         output log file
   -c dir, --chdir dir   chdir to run
 
-$$ dm list -h
+$ dm list -h
 usage: dm list [-h]
 
 optional arguments:
