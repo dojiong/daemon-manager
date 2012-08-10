@@ -38,6 +38,16 @@ class Daemon(object):
         else:
             self.dir = os.getcwd()
 
+    @staticmethod
+    def load(dm_path):
+        try:
+            return pickle.load(file(dm_path))
+        except:
+            try:
+                os.unlink(dm_path)
+            except OSError:
+                pass
+
     def run(self):
         pid = os.fork()
         if pid < 0:
@@ -63,6 +73,18 @@ class Daemon(object):
             self.time = datetime.now().strftime('%Y-%m-%d %H:%m:%S')
             return pid
 
+    def is_alive(self):
+        cmdline_path = '/proc/%s/cmdline' % self.pid
+        if os.path.isfile(cmdline_path):
+            try:
+                cmdline = file(cmdline_path).read()
+            except OSError:
+                return False
+            cmdline = cmdline.replace('\x00', ' ').strip()
+            if cmdline == self.cmdline.encode('utf8'):
+                return True
+        return False
+
 
 class DM(object):
     def __init__(self):
@@ -75,47 +97,42 @@ class DM(object):
             raise OSError('daemon-manager\'s home directory can\'t be created')
 
     def get_daemons(self, name=None, group=None):
+        if name:
+            dm_path = self.home_file('%s.dm' % name)
+            dm = Daemon.load(dm_path)
+            if dm:
+                return {dm.name: dm}
+            return {}
         files = os.listdir(self.home)
-        dm_r = re.compile(r'^(\d+)\.dm$')
-        dm_files = filter(lambda x: dm_r.match(x), files)
+        dm_files = filter(lambda x: x.endswith('.dm'), files)
         daemons = {}
         for fname in dm_files:
-            pid, _ = fname.split('.', 1)
             dm_path = self.home_file(fname)
-            try:
-                dm = pickle.load(file(dm_path))
-            except:
-                try:
-                    os.unlink(dm_path)
-                except OSError:
-                    pass
+            dm = Daemon.load(dm_path)
+            if dm and dm.is_alive():
+                if group is None or group == dm.group:
+                    daemons[dm.name or dm.pid] = dm
                 continue
-            cmdline_path = '/proc/%s/cmdline' % pid
-            if os.path.isfile(cmdline_path):
-                try:
-                    cmdline = file(cmdline_path).read()
-                except OSError:
-                    continue
-                cmdline = cmdline.replace('\x00', ' ').strip()
-                if cmdline == dm.cmdline.encode('utf8'):
-                    if name is not None:
-                        if name == dm.name:
-                            return {dm.pid: dm}
-                        continue
-                    if group is None or group == dm.group:
-                        daemons[int(pid)] = dm
-                    continue
             os.unlink(dm_path)
         return daemons
 
     def run(self, cmdline, logfile=None,
             chdir=None, name=None, group=None):
+        if name:
+            dm_path = self.home_file('%s.dm' % name)
+            if dm_path:
+                dm = Daemon.load(dm_path)
+                if dm and dm.is_alive():
+                    print 'this named daemon is alive!'
+                    return
+        else:
+            dm_path = None
         dm = Daemon(cmdline=cmdline, logfile=logfile, chdir=chdir,
             name=name, group=group)
         pid = dm.run()
         if pid > 0:
             print 'pid:', pid
-            f = file(self.home_file('%d.dm' % pid), 'wb')
+            f = file(dm_path or self.home_file('%d.dm' % pid), 'wb')
             f.write(pickle.dumps(dm))
             f.close()
         else:
@@ -127,7 +144,7 @@ class DM(object):
             print 'no daemons'
             return
         for pid, dm in daemons.items():
-            print 'pid: %d, cmd: %s' % (pid, repr(dm.cmdline.encode('utf8'))),
+            print 'pid: %d, cmd: %s' % (dm.pid, repr(dm.cmdline.encode('utf8'))),
             if dm.logfile:
                 print ', logfile: %s' % repr(dm.logfile.encode('utf8')),
             if dm.chdir:
@@ -149,10 +166,13 @@ class DM(object):
                 print ''
             if len(yn) == 0 or yn.upper() == 'Y':
                 for pid, dm in daemons.iteritems():
-                    if sigkill:
-                        os.kill(dm.pid, signal.SIGKILL)
-                    else:
-                        os.kill(dm.pid, signal.SIGTERM)
+                    try:
+                        if sigkill:
+                            os.kill(dm.pid, signal.SIGKILL)
+                        else:
+                            os.kill(dm.pid, signal.SIGTERM)
+                    except OSError:
+                        pass
         else:
             print 'no daemons to kill'
 
@@ -187,7 +207,7 @@ def main():
         dest='name', help='filter by daemon name', metavar='name')
     kill_parser.add_argument('-g', '--group', default=None,
         dest='group', help='filter by daemon group', metavar='group')
-    kill_parser.add_argument('-f', '--quiet', default=False,
+    kill_parser.add_argument('-q', '--quiet', default=False,
         dest='quiet', help='quiet to kill, no prompt', action='store_true')
     kill_parser.add_argument('-9', default=False,
         dest='sigkill', help='use SIGKILL to kill', action='store_true')
