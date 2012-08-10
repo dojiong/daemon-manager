@@ -5,11 +5,11 @@ manage linux daemons.
 
 ###Usage
 ```
-#start server
-python server.py
-
 #run a daemon
 python dm.py run "sleep 10"
+
+#list all daemons
+python dm.py list
 ```
 
 ####cmdline help
@@ -28,22 +28,20 @@ optional arguments:
   -h, --help  show this help message and exit
 
 $ ./dm.py run -h
-usage: dm.py run [-h] [-u user] [-o stdout_file] [-c dir] commandline
+usage: dm.py run [-h] [-o log_file] [-c dir] commandline
 
 positional arguments:
   commandline           cmd to run
 
 optional arguments:
   -h, --help            show this help message and exit
-  -u user, --user user  run as
-  -o stdout_file, --stdout stdout_file
-                        stdout log file
+  -o log_file, --stdout log_file
+                        output log file
   -c dir, --chdir dir   chdir to run
 
-$ ./dm.py list -h
-usage: dm.py list [-h] [-a]
+$$ ./dm.py list -h
+usage: dm.py list [-h]
 
 optional arguments:
   -h, --help  show this help message and exit
-  -a, --all   filter by user
 ```
