@@ -99,22 +99,23 @@ class DM(object):
                 print ', chdir: %s' % repr(dm['chdir'].encode('utf8')),
             print ', start at: "%s"' % dm['time']
 
-#command line arguments parser
-args_parser = argparse.ArgumentParser(
-    description='client tool for daemon-manager')
-sub_parsers = args_parser.add_subparsers(dest='dmcmd')
 
-run_parser = sub_parsers.add_parser('run', help='start a daemon')
-run_parser.add_argument(dest='cmd',
-    help='cmd to run', metavar='commandline')
-run_parser.add_argument('-o', '--stdout', default=None,
-    dest='logfile', help='output log file', metavar='log_file')
-run_parser.add_argument('-c', '--chdir', default=None,
-    dest='chdir', help='chdir to run', metavar='dir')
+def main():
+    #command line arguments parser
+    args_parser = argparse.ArgumentParser(
+        description='client tool for daemon-manager')
+    sub_parsers = args_parser.add_subparsers(dest='dmcmd')
 
-list_parser = sub_parsers.add_parser('list', help='list daemons')
+    run_parser = sub_parsers.add_parser('run', help='start a daemon')
+    run_parser.add_argument(dest='cmd',
+        help='cmd to run', metavar='commandline')
+    run_parser.add_argument('-o', '--stdout', default=None,
+        dest='logfile', help='output log file', metavar='log_file')
+    run_parser.add_argument('-c', '--chdir', default=None,
+        dest='chdir', help='chdir to run', metavar='dir')
 
-if __name__ == '__main__':
+    sub_parsers.add_parser('list', help='list daemons')
+
     dm = DM()
     args = args_parser.parse_args(sys.argv[1:])
 
