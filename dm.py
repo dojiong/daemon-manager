@@ -109,7 +109,7 @@ def main():
     run_parser = sub_parsers.add_parser('run', help='start a daemon')
     run_parser.add_argument(dest='cmd',
         help='cmd to run', metavar='commandline')
-    run_parser.add_argument('-o', '--stdout', default=None,
+    run_parser.add_argument('-o', '--log', default=None,
         dest='logfile', help='output log file', metavar='log_file')
     run_parser.add_argument('-c', '--chdir', default=None,
         dest='chdir', help='chdir to run', metavar='dir')
