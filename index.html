@@ -39,40 +39,62 @@ dm run "sleep 10"
 
 #list all daemons
 dm list
+
+#kill a daemon named "server"
+dm kill -n server
 </code></pre>
 
 <h4>cmdline help</h4>
 
 <pre><code>$ dm -h
-usage: dm [-h] {list,run} ...
+usage: dm [-h] {list,run,kill} ...
 
 client tool for daemon-manager
 
 positional arguments:
-  {list,run}
-    run       start a daemon
-    list      list daemons
+  {list,run,kill}
+    run            start a daemon
+    list           list daemons
+    kill           kill daemons, default to all
 
 optional arguments:
-  -h, --help  show this help message and exit
+  -h, --help       show this help message and exit
 
 $ dm run -h
-usage: dm run [-h] [-o log_file] [-c dir] commandline
+usage: dm run [-h] [-o log_file] [-c dir] [-n name] [-g group] cmdline
 
 positional arguments:
-  commandline           cmd to run
+  cmdline               cmdline to run
 
 optional arguments:
   -h, --help            show this help message and exit
   -o log_file, --log log_file
                         output log file
   -c dir, --chdir dir   chdir to run
+  -n name, --name name  daemon name
+  -g group, --group group
+                        daemon group
 
 $ dm list -h
-usage: dm list [-h]
+usage: dm list [-h] [-n name] [-g group]
 
 optional arguments:
-  -h, --help  show this help message and exit
+  -h, --help            show this help message and exit
+  -n name, --name name  filter by daemon name
+  -g group, --group group
+                        filter by daemon group
+
+$ dm kill -h
+usage: dm kill [-h] [-n name] [-g group] [-q] [-9]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -n name, --name name  filter by daemon name
+  -g group, --group group
+                        filter by daemon group
+  -q, --quiet           quiet to kill, no prompt
+  -9                    use SIGKILL to kill
+
 </code></pre>
       </section>
     </div>
