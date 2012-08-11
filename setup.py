@@ -11,6 +11,7 @@ setup(name='daemon-manager',
       author='Du Jiong/Lodevil',
       author_email='lodevil@live.cn',
       url='https://github.com/lodevil/daemon-manager/',
+      download_url='https://github.com/lodevil/daemon-manager/zipball/master',
       license='BSD',
       py_modules=['dm'],
       entry_points={
