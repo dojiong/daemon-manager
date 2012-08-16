@@ -15,11 +15,23 @@ import os
 from datetime import datetime
 import argparse
 import signal
+import fcntl
+from contextlib import contextmanager
 
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
+
+
+@contextmanager
+def file_lock(fpath):
+    f = file(fpath, 'a')
+    fcntl.lockf(f, fcntl.LOCK_EX)
+    yield
+    fcntl.lockf(f, fcntl.LOCK_UN)
+    f.close()
+    os.unlink(fpath)
 
 
 class Daemon(object):
@@ -116,7 +128,7 @@ class DM(object):
             os.unlink(dm_path)
         return daemons
 
-    def run(self, cmdline, logfile=None,
+    def _run(self, cmdline, logfile=None,
             chdir=None, name=None, group=None):
         if name:
             dm_path = self.home_file('%s.dm' % name)
@@ -138,7 +150,11 @@ class DM(object):
         else:
             print 'start daemon fail'
 
-    def list(self, name=None, group=None):
+    def run(self, *argv, **kwargv):
+        with file_lock(self.home_file('dm.lock')):
+            self._run(*argv, **kwargv)
+
+    def _list(self, name=None, group=None):
         daemons = self.get_daemons(name=name, group=group)
         if len(daemons) == 0:
             print 'no daemons'
@@ -155,7 +171,11 @@ class DM(object):
                 print ', group:', dm.group,
             print ', start at: "%s"' % dm.time
 
-    def kill(self, name=None, group=None, quiet=False, sigkill=False):
+    def list(self, *argv, **kwargv):
+        with file_lock(self.home_file('dm.lock')):
+            self._list(*argv, **kwargv)
+
+    def _kill(self, name=None, group=None, quiet=False, sigkill=False):
         daemons = self.get_daemons(name, group)
         if len(daemons) > 0:
             print '%d daemon to kill' % len(daemons),
@@ -175,6 +195,10 @@ class DM(object):
                         pass
         else:
             print 'no daemons to kill'
+
+    def kill(self, *argv, **kwargv):
+        with file_lock(self.home_file('dm.lock')):
+            self._kill(*argv, **kwargv)
 
 
 def main():
