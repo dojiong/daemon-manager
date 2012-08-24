@@ -86,7 +86,7 @@ class Daemon(object):
             return pid
 
     def is_alive(self):
-        cmdline_path = '/proc/%s/cmdline' % self.pid
+        cmdline_path = '/proc/{0}/cmdline'.format(self.pid)
         if os.path.isfile(cmdline_path):
             try:
                 cmdline = file(cmdline_path).read()
