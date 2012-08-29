@@ -9,7 +9,7 @@
     :copyright: (c) 2012 by Du Jiong.
     :license: BSD, see LICENSE for more details.
 '''
-import re
+
 import sys
 import os
 from datetime import datetime
@@ -71,7 +71,7 @@ class Daemon(object):
             os.setsid()
             os.close(0)
             if self.logfile:
-                f = file(self.logfile, 'a')
+                f = file(self.logfile, 'a', 0)
                 os.dup2(f.fileno(), 1)
                 os.dup2(f.fileno(), 2)
             else:
