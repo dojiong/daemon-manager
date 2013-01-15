@@ -13,10 +13,10 @@
 import sys
 import os
 from datetime import datetime
+import time
 import argparse
 import signal
 import fcntl
-from contextlib import contextmanager
 
 try:
     import cPickle as pickle
@@ -24,14 +24,25 @@ except ImportError:
     import pickle
 
 
-@contextmanager
-def file_lock(fpath):
-    f = file(fpath, 'a')
-    fcntl.lockf(f, fcntl.LOCK_EX)
-    yield
-    fcntl.lockf(f, fcntl.LOCK_UN)
-    f.close()
-    os.unlink(fpath)
+user_home = os.path.expanduser('~')
+dm_home = os.path.join(user_home, '.dm')
+dm_home_file = os.path.join(dm_home, '.dmlock')
+
+
+def file_lock(func):
+    def infunc(*argv, **kwargv):
+        f = file(dm_home_file, 'a')
+        fcntl.lockf(f, fcntl.LOCK_EX)
+        try:
+            func(*argv, **kwargv)
+        finally:
+            fcntl.lockf(f, fcntl.LOCK_UN)
+            f.close()
+            try:
+                os.unlink(dm_home_file)
+            except OSError:
+                pass
+    return infunc
 
 
 class Daemon(object):
@@ -40,6 +51,7 @@ class Daemon(object):
         if chdir and not os.path.isdir(chdir):
             raise OSError('no such directory: "%s"' % chdir)
         self.cmdline = cmdline.strip()
+        self.proc_cmdline = self.cmdline
         self.logfile = logfile
         self.chdir = chdir
         self.name = name
@@ -61,6 +73,7 @@ class Daemon(object):
                 pass
 
     def run(self):
+        self_cmdline = self.get_cmdlime(os.getpid())
         pid = os.fork()
         if pid < 0:
             raise OSError('create subprocess fail')
@@ -83,19 +96,31 @@ class Daemon(object):
         else:
             self.pid = pid
             self.time = datetime.now().strftime('%Y-%m-%d %H:%m:%S')
+            while True:
+                cmdline = self.get_cmdlime(pid)
+                if cmdline is None or cmdline != self_cmdline:
+                    break
+                time.sleep(0.05)
+            if cmdline is None:
+                raise OSError('daemon exit')
+            self.proc_cmdline = cmdline
             return pid
 
     def is_alive(self):
-        cmdline_path = '/proc/{0}/cmdline'.format(self.pid)
+        cmdline = self.get_cmdlime(self.pid)
+        if cmdline == self.proc_cmdline:
+            return True
+        return False
+
+    @staticmethod
+    def get_cmdlime(pid):
+        cmdline_path = '/proc/{0}/cmdline'.format(pid)
         if os.path.isfile(cmdline_path):
             try:
                 cmdline = file(cmdline_path).read()
             except OSError:
                 return False
-            cmdline = cmdline.replace('\x00', ' ').strip()
-            if cmdline == self.cmdline.encode('utf8'):
-                return True
-        return False
+            return cmdline.replace('\x00', ' ').strip().decode('utf8')
 
 
 class DM(object):
@@ -128,7 +153,8 @@ class DM(object):
             os.unlink(dm_path)
         return daemons
 
-    def _run(self, cmdline, logfile=None,
+    @file_lock
+    def run(self, cmdline, logfile=None,
             chdir=None, name=None, group=None):
         if name:
             dm_path = self.home_file('%s.dm' % name)
@@ -150,11 +176,8 @@ class DM(object):
         else:
             print 'start daemon fail'
 
-    def run(self, *argv, **kwargv):
-        with file_lock(self.home_file('dm.lock')):
-            self._run(*argv, **kwargv)
-
-    def _list(self, name=None, group=None):
+    @file_lock
+    def list(self, name=None, group=None):
         daemons = self.get_daemons(name=name, group=group)
         if len(daemons) == 0:
             print 'no daemons'
@@ -171,11 +194,8 @@ class DM(object):
                 print ', group:', dm.group,
             print ', start at: "%s"' % dm.time
 
-    def list(self, *argv, **kwargv):
-        with file_lock(self.home_file('dm.lock')):
-            self._list(*argv, **kwargv)
-
-    def _kill(self, name=None, group=None, quiet=False, sigkill=False):
+    @file_lock
+    def kill(self, name=None, group=None, quiet=False, sigkill=False):
         daemons = self.get_daemons(name, group)
         if len(daemons) > 0:
             print '%d daemon to kill' % len(daemons),
@@ -195,10 +215,6 @@ class DM(object):
                         pass
         else:
             print 'no daemons to kill'
-
-    def kill(self, *argv, **kwargv):
-        with file_lock(self.home_file('dm.lock')):
-            self._kill(*argv, **kwargv)
 
 
 def main():
