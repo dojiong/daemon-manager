@@ -23,6 +23,9 @@ try:
 except ImportError:
     import pickle
 
+if sys.version_info.major == 3:
+    raw_input = input
+
 
 user_home = os.path.expanduser('~')
 dm_home = os.path.join(user_home, '.dm')
@@ -31,7 +34,7 @@ dm_home_file = os.path.join(dm_home, '.dmlock')
 
 def file_lock(func):
     def infunc(*argv, **kwargv):
-        f = file(dm_home_file, 'a')
+        f = open(dm_home_file, 'a')
         fcntl.lockf(f, fcntl.LOCK_EX)
         try:
             func(*argv, **kwargv)
@@ -65,11 +68,11 @@ class Daemon(object):
     @staticmethod
     def load(dm_path):
         try:
-            return pickle.load(file(dm_path))
+            return pickle.load(open(dm_path, 'rb'))
         except:
             try:
                 os.unlink(dm_path)
-            except OSError:
+            except:
                 pass
 
     def run(self):
@@ -84,7 +87,7 @@ class Daemon(object):
             os.setsid()
             os.close(0)
             if self.logfile:
-                f = file(self.logfile, 'a', 0)
+                f = open(self.logfile, 'a', 0)
                 os.dup2(f.fileno(), 1)
                 os.dup2(f.fileno(), 2)
             else:
@@ -117,10 +120,10 @@ class Daemon(object):
         cmdline_path = '/proc/{0}/cmdline'.format(pid)
         if os.path.isfile(cmdline_path):
             try:
-                cmdline = file(cmdline_path).read()
+                cmdline = open(cmdline_path).read()
             except OSError:
                 return False
-            return cmdline.replace('\x00', ' ').strip().decode('utf8')
+            return cmdline.replace('\x00', ' ').strip()
 
 
 class DM(object):
@@ -150,7 +153,10 @@ class DM(object):
                 if group is None or group == dm.group:
                     daemons[dm.name or dm.pid] = dm
                 continue
-            os.unlink(dm_path)
+            try:
+                os.unlink(dm_path)
+            except:
+                pass
         return daemons
 
     @file_lock
@@ -161,7 +167,7 @@ class DM(object):
             if dm_path:
                 dm = Daemon.load(dm_path)
                 if dm and dm.is_alive():
-                    print 'this named daemon is alive!'
+                    print('this named daemon is alive!')
                     return
         else:
             dm_path = None
@@ -169,43 +175,45 @@ class DM(object):
             name=name, group=group)
         pid = dm.run()
         if pid > 0:
-            print 'pid:', pid
-            f = file(dm_path or self.home_file('%d.dm' % pid), 'wb')
+            print('pid: %d' % pid)
+            f = open(dm_path or self.home_file('%d.dm' % pid), 'wb')
             f.write(pickle.dumps(dm))
             f.close()
         else:
-            print 'start daemon fail'
+            print('start daemon fail')
 
     @file_lock
     def list(self, name=None, group=None):
         daemons = self.get_daemons(name=name, group=group)
         if len(daemons) == 0:
-            print 'no daemons'
+            print('no daemons')
             return
         for pid, dm in daemons.items():
-            print 'pid: %d, cmd: %s' % (dm.pid, repr(dm.cmdline.encode('utf8'))),
+            lines = ['pid: %d, cmd: %s' % (dm.pid, repr(dm.cmdline))]
             if dm.logfile:
-                print ', logfile: %s' % repr(dm.logfile.encode('utf8')),
+                lines.append(', logfile: %s' % repr(dm.logfile))
             if dm.chdir:
-                print ', chdir: %s' % repr(dm.chdir.encode('utf8')),
+                lines.append(', chdir: %s' % repr(dm.chdir))
             if dm.name:
-                print ', name:', dm.name,
+                lines.append(', name: %s' % dm.name)
             if dm.group:
-                print ', group:', dm.group,
-            print ', start at: "%s"' % dm.time
+                lines.append(', group: %s' % dm.group)
+            lines.append(', start at: "%s"' % dm.time)
+            print(''.join(lines))
 
     @file_lock
     def kill(self, name=None, group=None, quiet=False, sigkill=False):
         daemons = self.get_daemons(name, group)
         if len(daemons) > 0:
-            print '%d daemon to kill' % len(daemons),
+            notify = '%d daemon to kill' % len(daemons)
             if quiet == False:
-                yn = raw_input(', are you sure? [Y/n]')
+                notify += 'are you sure? [Y/n]'
+                yn = raw_input(notify)
             else:
                 yn = 'Y'
-                print ''
+                print(notify)
             if len(yn) == 0 or yn.upper() == 'Y':
-                for pid, dm in daemons.iteritems():
+                for pid, dm in daemons.items():
                     try:
                         if sigkill:
                             os.kill(dm.pid, signal.SIGKILL)
@@ -214,7 +222,7 @@ class DM(object):
                     except OSError:
                         pass
         else:
-            print 'no daemons to kill'
+            print('no daemons to kill')
 
 
 def main():
