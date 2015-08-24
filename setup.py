@@ -6,7 +6,7 @@ except ImportError:
     from distutils.core import setup
 
 setup(name='daemon-manager',
-      version='0.1.4',
+      version='0.1.4.c',
       description='Linux Daemon Manager',
       author='Du Jiong/Lodevil',
       author_email='londevil@gmail.com',

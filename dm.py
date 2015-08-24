@@ -251,9 +251,11 @@ class DM(object):
                 return
             if cmd is not None:
                 os.system(cmd)
-            for daemon in daemons.values():
-                pid = daemon.run()
-                print('pid: %d' % pid)
+            for dm in daemons.values():
+                pid = dm.run()
+                print('pid: %d%s%s' % (pid,
+                                       dm.name and ' name: %s' % dm.name or '',
+                                       dm.group and ' group: %s' % dm.group or ''))
                 f = open(self.home_file('%s.dm' % (dm.name or str(pid))), 'wb')
                 f.write(pickle.dumps(dm))
                 f.close()
