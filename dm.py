@@ -13,6 +13,7 @@
 import sys
 import os
 from datetime import datetime
+from functools import partial
 import time
 import argparse
 import signal
@@ -50,7 +51,7 @@ def file_lock(func):
 
 class Daemon(object):
     def __init__(self, cmdline, logfile=None,
-            chdir=None, name=None, group=None, **ignore):
+                 chdir=None, name=None, group=None, **ignore):
         if chdir and not os.path.isdir(chdir):
             raise OSError('no such directory: "%s"' % chdir)
         self.cmdline = cmdline.strip()
@@ -130,7 +131,7 @@ class DM(object):
     def __init__(self):
         user_home = os.path.expanduser('~')
         self.home = os.path.join(user_home, '.dm')
-        self.home_file = lambda x: os.path.join(self.home, x)
+        self.home_file = partial(os.path.join, self.home)
         if not os.path.exists(self.home):
             os.mkdir(self.home)
         elif os.path.isfile(self.home):
@@ -172,7 +173,7 @@ class DM(object):
         else:
             dm_path = None
         dm = Daemon(cmdline=cmdline, logfile=logfile, chdir=chdir,
-            name=name, group=group)
+                    name=name, group=group)
         pid = dm.run()
         if pid > 0:
             print('pid: %d' % pid)
@@ -206,7 +207,7 @@ class DM(object):
         daemons = self.get_daemons(name, group)
         if len(daemons) > 0:
             notify = '%d daemon to kill' % len(daemons)
-            if quiet == False:
+            if quiet is False:
                 notify += 'are you sure? [Y/n]'
                 yn = raw_input(notify)
             else:
@@ -221,56 +222,118 @@ class DM(object):
                             os.kill(dm.pid, signal.SIGTERM)
                     except OSError:
                         pass
+
         else:
             print('no daemons to kill')
 
+    @file_lock
+    def restart(self, name=None, group=None, cmd=None,
+                quiet=False, sigkill=False):
+        daemons = self.get_daemons(name, group)
+        if len(daemons) > 0:
+            notify = '%d daemon to restart' % len(daemons)
+            if quiet is False:
+                notify += 'are you sure? [Y/n]'
+                yn = raw_input(notify)
+            else:
+                yn = 'Y'
+                print(notify)
+            if len(yn) == 0 or yn.upper() == 'Y':
+                for pid, dm in daemons.items():
+                    try:
+                        if sigkill:
+                            os.kill(dm.pid, signal.SIGKILL)
+                        else:
+                            os.kill(dm.pid, signal.SIGTERM)
+                    except OSError:
+                        pass
+            else:
+                return
+            if cmd is not None:
+                os.system(cmd)
+            for daemon in daemons.values():
+                pid = daemon.run()
+                print('pid: %d' % pid)
+                f = open(self.home_file('%s.dm' % (name or str(pid))), 'wb')
+                f.write(pickle.dumps(dm))
+                f.close()
+        else:
+            print('no daemons to restart')
+
 
 def main():
-    #command line arguments parser
+    # command line arguments parser
     args_parser = argparse.ArgumentParser(
         description='client tool for daemon-manager')
     sub_parsers = args_parser.add_subparsers(dest='dmcmd')
 
     run_parser = sub_parsers.add_parser('run', help='start a daemon')
     run_parser.add_argument(dest='cmdline',
-        help='cmdline to run', metavar='cmdline')
+                            help='cmdline to run', metavar='cmdline')
     run_parser.add_argument('-o', '--log', default=None,
-        dest='logfile', help='output log file', metavar='log_file')
+                            dest='logfile', help='output log file',
+                            metavar='log_file')
     run_parser.add_argument('-c', '--chdir', default=None,
-        dest='chdir', help='chdir to run', metavar='dir')
+                            dest='chdir', help='chdir to run', metavar='dir')
     run_parser.add_argument('-n', '--name', default=None,
-        dest='name', help='daemon name', metavar='name')
+                            dest='name', help='daemon name', metavar='name')
     run_parser.add_argument('-g', '--group', default=None,
-        dest='group', help='daemon group', metavar='group')
+                            dest='group', help='daemon group', metavar='group')
 
     list_parser = sub_parsers.add_parser('list', help='list daemons')
     list_parser.add_argument('-n', '--name', default=None,
-        dest='name', help='filter by daemon name', metavar='name')
+                             dest='name', help='filter by daemon name',
+                             metavar='name')
     list_parser.add_argument('-g', '--group', default=None,
-        dest='group', help='filter by daemon group', metavar='group')
+                             dest='group', help='filter by daemon group',
+                             metavar='group')
 
-    kill_parser = sub_parsers.add_parser(
-        'kill', help='kill daemons, default to all')
+    kill_parser = sub_parsers.add_parser('kill',
+                                         help='kill daemons, default to all')
     kill_parser.add_argument('-n', '--name', default=None,
-        dest='name', help='filter by daemon name', metavar='name')
+                             dest='name', help='filter by daemon name',
+                             metavar='name')
     kill_parser.add_argument('-g', '--group', default=None,
-        dest='group', help='filter by daemon group', metavar='group')
+                             dest='group', help='filter by daemon group',
+                             metavar='group')
     kill_parser.add_argument('-q', '--quiet', default=False,
-        dest='quiet', help='quiet to kill, no prompt', action='store_true')
+                             dest='quiet', help='quiet to kill, no prompt',
+                             action='store_true')
     kill_parser.add_argument('-9', default=False,
-        dest='sigkill', help='use SIGKILL to kill', action='store_true')
+                             dest='sigkill', help='use SIGKILL to kill',
+                             action='store_true')
+
+    restart_parser = sub_parsers.add_parser('restart', help='restart daemons')
+    restart_parser.add_argument('-n', '--name', default=None,
+                                dest='name', help='filter by daemon name',
+                                metavar='name')
+    restart_parser.add_argument('-g', '--group', default=None,
+                                dest='group', help='filter by daemon group',
+                                metavar='group')
+    restart_parser.add_argument('-c', '--cmd', default=None, dest='cmd',
+                                help='cmd to run after daemon stopped',
+                                metavar='cmd')
+    restart_parser.add_argument('-q', '--quiet', default=False,
+                                dest='quiet', help='quiet to kill, no prompt',
+                                action='store_true')
+    restart_parser.add_argument('-9', default=False,
+                                dest='sigkill', help='use SIGKILL to kill',
+                                action='store_true')
 
     dm = DM()
     args = args_parser.parse_args(sys.argv[1:])
 
     if args.dmcmd == 'run':
         dm.run(cmdline=args.cmdline, logfile=args.logfile,
-            name=args.name, group=args.group)
+               name=args.name, group=args.group)
     elif args.dmcmd == 'list':
         dm.list(name=args.name, group=args.group)
     elif args.dmcmd == 'kill':
         dm.kill(name=args.name, group=args.group, quiet=args.quiet,
-            sigkill=args.sigkill)
+                sigkill=args.sigkill)
+    elif args.dmcmd == 'restart':
+        dm.restart(name=args.name, group=args.group, cmd=args.cmd,
+                   quiet=args.quiet, sigkill=args.sigkill)
 
 if __name__ == '__main__':
     main()
